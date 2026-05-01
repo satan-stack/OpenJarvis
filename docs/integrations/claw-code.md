@@ -123,6 +123,44 @@ print(result.metadata)
 | `timeout`         | `300`                | Wall-clock seconds before the subprocess is killed.                |
 | `extra_args`      | `[]`                 | Extra flags appended before `prompt <input>` for power users.      |
 
+## Picking a model on CPU-only hardware
+
+claw's system prompt is large (~3K tokens), so most of each turn on a
+CPU box is spent reading the prompt. The right model is the smallest
+one that still follows claw's tool-calling protocol cleanly. Verified
+trade-offs on a modern x86 CPU with no GPU:
+
+| Model                       | Cold turn | Warm turn | Notes                                                |
+|-----------------------------|-----------|-----------|------------------------------------------------------|
+| `openai/qwen2.5-coder:1.5b` | ~120 s    | **~10 s** | Best CPU pick; code-specialized; clean instructions. |
+| `openai/llama3.2:3b`        | ~250 s    | ~30 s     | General-purpose backup; sometimes hallucinates tools.|
+| `openai/qwen2.5-coder:7b`   | 8-12 min  | 2-4 min   | Smarter but too slow on CPU for interactive use.     |
+| `openai/tinyllama:1.1b`     | ~60 s     | ~5 s      | Too weak to follow claw's tool protocol reliably.    |
+| `sonnet` / `haiku`          | n/a       | 2-8 s     | Anthropic direct; `ANTHROPIC_API_KEY` required.      |
+
+## Multi-model ensemble (`scripts/claw_ensemble.py`)
+
+For mission-critical prompts, [`scripts/claw_ensemble.py`](../../scripts/claw_ensemble.py)
+runs two models with a quality gate that filters out hallucinated tool
+calls and empty replies. Two modes:
+
+- **`cascade`** (default; best on CPU) — try the primary first; only
+  invoke the secondary if the primary's output trips the filter. One
+  model fully owns the cores per turn, so warm-cache turns are as fast
+  as the primary alone.
+- **`race`** (best on GPU / multi-GPU) — dispatch every model
+  concurrently and take the first reply that passes the gate.
+
+```bash
+export CLAW_BINARY=/path/to/claw
+export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"
+export OPENAI_API_KEY="ollama"
+export CLAW_ENSEMBLE_MODE=cascade        # or "race" if you have a GPU
+export CLAW_ENSEMBLE_MODELS="openai/qwen2.5-coder:1.5b,openai/llama3.2:3b"
+
+uv run python scripts/claw_ensemble.py "write a fibonacci function in python"
+```
+
 ## Troubleshooting
 
 - **`binary_missing`** — the agent could not locate `claw`. Build it,

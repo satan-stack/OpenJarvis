@@ -34,9 +34,16 @@ max_turns = 1                       # claw drives its own internal loop
 
 [intelligence]
 # Anthropic alias resolved by claw (`opus` / `sonnet` / `haiku`),
-# or any model name claw understands (e.g. "openai/gpt-4.1-mini",
-# "qwen-plus", "llama3.2", "grok-3").
-default_model = "sonnet"
+# or any model name claw understands. For local CPU-only setups via
+# Ollama, prefix the tag with `openai/` so claw routes through the
+# OpenAI-compatible backend. qwen2.5-coder:1.5b is the best speed /
+# quality tradeoff for claw's ~3K-token system prompt on CPU
+# (verified ~10s warm, ~120s cold on a modern x86 CPU). Other options:
+#   "openai/llama3.2:3b"           general-purpose backup
+#   "openai/qwen2.5-coder:7b"      smarter but ~3-4x slower on CPU
+#   "openai/gpt-4.1-mini"          OpenRouter / OpenAI proper
+#   "sonnet"                       Anthropic direct (set ANTHROPIC_API_KEY)
+default_model = "openai/qwen2.5-coder:1.5b"
 
 [engine]
 # Unused by claw_code itself, but Jarvis still resolves an engine for
