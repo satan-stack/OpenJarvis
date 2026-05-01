@@ -1,0 +1,48 @@
+# Claw Code Assistant — wraps the `claw` Rust CLI as the coding agent.
+# Copy to ~/.openjarvis/config.toml.
+#
+# Prerequisites:
+#   1. Build claw from https://github.com/satan-stack/claw-code
+#        cd claw-code/rust && cargo build --workspace
+#   2. Put `claw` on PATH or export CLAW_BINARY pointing at the binary:
+#        export CLAW_BINARY=$PWD/target/debug/claw
+#   3. Export an API key for the model you want claw to call.
+#      Anthropic:  export ANTHROPIC_API_KEY=sk-ant-...
+#      xAI:        export XAI_API_KEY=...
+#      OpenAI/etc: export OPENAI_API_KEY=...   (and OPENAI_BASE_URL for OpenRouter/Ollama)
+#
+# Usage:
+#   jarvis ask --agent claw_code "summarize this repository"
+#   jarvis ask --agent claw_code "refactor src/auth.rs to use async/await"
+#
+# The claw_code agent runs claw one-shot per turn with --output-format json.
+# Inference is handled by claw itself; the [engine] / [intelligence] blocks
+# below only matter if you also use other Jarvis agents in the same session.
+
+[agent]
+default_agent = "claw_code"
+max_turns = 1                       # claw drives its own internal loop
+
+[agent.claw_code]
+# All keys here are optional — defaults shown.
+# binary = "claw"                   # or absolute path; CLAW_BINARY env wins
+# workspace = "."                   # cwd claw runs in
+# permission_mode = "workspace-write"  # read-only | workspace-write | danger-full-access
+# allowed_tools = ["read", "glob", "edit"]
+# timeout = 300
+# resume = "latest"                 # resume a saved claw session
+
+[intelligence]
+# Anthropic alias resolved by claw (`opus` / `sonnet` / `haiku`),
+# or any model name claw understands (e.g. "openai/gpt-4.1-mini",
+# "qwen-plus", "llama3.2", "grok-3").
+default_model = "sonnet"
+
+[engine]
+# Unused by claw_code itself, but Jarvis still resolves an engine for
+# any other agent you might invoke in the same session.
+default = "ollama"
+
+[tools]
+# claw owns its own tools — these stay disabled to avoid double-wiring.
+enabled = []

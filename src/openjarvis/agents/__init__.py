@@ -55,6 +55,11 @@ except ImportError:
     pass
 
 try:
+    import openjarvis.agents.claw_code  # noqa: F401
+except ImportError:
+    pass
+
+try:
     import openjarvis.agents.operative  # noqa: F401
 except ImportError:
     pass
