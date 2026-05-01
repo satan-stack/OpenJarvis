@@ -235,26 +235,34 @@ class ClawCodeAgent(BaseAgent):
     ) -> tuple[str, list[ToolResult], dict[str, Any]]:
         """Parse ``claw --output-format json`` stdout into agent fields.
 
-        claw emits a single JSON object on stdout. We tolerate it being
-        embedded in surrounding log noise by scanning for the first ``{``
-        and the last ``}``. If the payload is not valid JSON we return
-        the raw stdout as plain content.
+        claw emits a JSON object on stdout, but in flows that involve a
+        tool-permission prompt (``Approve this tool call? [y/N]:``) it
+        may print human-readable UI text -- including embedded
+        ``{...}`` fragments -- *before* the real JSON object. We scan
+        every ``{`` candidate with :class:`json.JSONDecoder` and keep
+        the last successfully-parsed top-level object.
         """
         text = stdout.strip()
         if not text:
             return "", [], {}
 
-        start = text.find("{")
-        end = text.rfind("}")
-        if start == -1 or end == -1 or end < start:
-            return text, [], {}
+        decoder = json.JSONDecoder()
+        data: dict[str, Any] | None = None
+        i = 0
+        while True:
+            i = text.find("{", i)
+            if i == -1:
+                break
+            try:
+                obj, consumed = decoder.raw_decode(text[i:])
+            except json.JSONDecodeError:
+                i += 1
+                continue
+            if isinstance(obj, dict):
+                data = obj
+            i += max(consumed, 1)
 
-        try:
-            data = json.loads(text[start : end + 1])
-        except json.JSONDecodeError:
-            return text, [], {"parse_error": True}
-
-        if not isinstance(data, dict):
+        if data is None:
             return text, [], {"parse_error": True}
 
         # claw uses a few different field names depending on the verb. Try
