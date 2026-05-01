@@ -1,11 +1,12 @@
 # Claw Code integration
 
-OpenJarvis ships two Claude-Code-style coding agents:
+OpenJarvis ships three Claude-Code-style coding agents:
 
-| Agent       | Backend                                             | Runtime dependency      |
-|-------------|-----------------------------------------------------|-------------------------|
-| `claude_code` | `@anthropic-ai/claude-code` SDK via Node.js subprocess | Node.js ≥ 22            |
-| `claw_code`   | `claw` Rust CLI from [satan-stack/claw-code][cc]    | A built `claw` binary   |
+| Agent         | Backend                                                  | Runtime dependency      |
+|---------------|----------------------------------------------------------|-------------------------|
+| `claude_code` | `@anthropic-ai/claude-code` SDK via Node.js subprocess   | Node.js ≥ 22            |
+| `claw_code`   | `claw` Rust CLI from [satan-stack/claw-code][cc]         | A built `claw` binary   |
+| `claw_smart`  | Token-saving router: qwen2.5 first, Anthropic on failure | Same as `claw_code`     |
 
 [cc]: https://github.com/satan-stack/claw-code
 
@@ -137,6 +138,58 @@ trade-offs on a modern x86 CPU with no GPU:
 | `openai/qwen2.5-coder:7b`   | 8-12 min  | 2-4 min   | Smarter but too slow on CPU for interactive use.     |
 | `openai/tinyllama:1.1b`     | ~60 s     | ~5 s      | Too weak to follow claw's tool protocol reliably.    |
 | `sonnet` / `haiku`          | n/a       | 2-8 s     | Anthropic direct; `ANTHROPIC_API_KEY` required.      |
+
+## `claw_smart`: cheap-first routing for haiku / sonnet
+
+When you ask the agent for `haiku` or `sonnet`, you usually don't
+*need* Anthropic — a small local code model handles the request 95% of
+the time. `claw_smart` exploits that by routing through
+`qwen2.5-coder:1.5b` first and only spending Anthropic tokens when the
+local reply trips the same hallucination filter the ensemble uses.
+
+| Asked model | Cascade chain                                       |
+|-------------|-----------------------------------------------------|
+| `haiku`     | `["openai/qwen2.5-coder:1.5b", "haiku"]`            |
+| `sonnet`    | `["openai/qwen2.5-coder:1.5b", "sonnet"]`           |
+| `opus`      | `["opus"]` — always Anthropic, no local equivalent. |
+| anything    | `[<as-is>]` — pass-through.                         |
+
+```toml
+[agent]
+default_agent = "claw_smart"
+
+[intelligence]
+default_model = "sonnet"        # routed to qwen, then Anthropic on failure
+```
+
+Both credentials live in the environment side-by-side; claw selects
+the right one per cascade step from the model name prefix:
+
+```bash
+export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"   # for qwen via Ollama
+export OPENAI_API_KEY="ollama"
+export ANTHROPIC_API_KEY="sk-ant-..."                # only spent if qwen fails
+```
+
+The winning result's metadata records the cascade trace under
+``claw_smart_chain``, ``claw_smart_winner``, and ``claw_smart_attempts``,
+so your traces show exactly which step answered each turn.
+
+Override the routing in code:
+
+```python
+from openjarvis.agents.claw_smart import ClawSmartAgent
+
+agent = ClawSmartAgent(
+    engine=None, model="sonnet",
+    model_routes={
+        # Force a smarter local model for sonnet
+        "sonnet": ["openai/qwen2.5-coder:7b", "sonnet"],
+        # Pin opus to claude-haiku-4-5 instead, ignoring any local hop
+        "opus": ["haiku"],
+    },
+)
+```
 
 ## Multi-model ensemble (`scripts/claw_ensemble.py`)
 

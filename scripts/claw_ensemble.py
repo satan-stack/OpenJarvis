@@ -17,11 +17,11 @@ Usage:
 from __future__ import annotations
 
 import os
-import re
 import sys
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from openjarvis.agents._claw_quality import looks_useful
 from openjarvis.agents.claw_code import ClawCodeAgent
 
 # Ordered by preference. First entry is the "primary" -- if it returns
@@ -30,21 +30,6 @@ DEFAULT_MODELS: list[str] = [
     "openai/qwen2.5-coder:1.5b",   # fast + code-specialized
     "openai/llama3.2:3b",          # general-purpose backup
 ]
-
-# Heuristic filter: a "good" answer is non-empty and doesn't look like the
-# model hallucinated a JSON tool call instead of replying.
-_TOOL_HALLUCINATION = re.compile(r'^\s*\{\s*"(name|tool|function|parameters)"', re.S)
-
-
-def looks_useful(text: str) -> bool:
-    if not text or not text.strip():
-        return False
-    if _TOOL_HALLUCINATION.match(text):
-        return False
-    if text.startswith("claw agent"):  # our own error envelopes
-        return False
-    return True
-
 
 def run_one(model: str, prompt: str, *, workspace: str, timeout: int) -> dict:
     agent = ClawCodeAgent(

@@ -1,0 +1,46 @@
+# Claw Smart Router — saves Anthropic tokens by trying qwen2.5 first.
+# Copy to ~/.openjarvis/config.toml.
+#
+# Routing (default; override via [agent.claw_smart.model_routes]):
+#   "haiku"   -> ["openai/qwen2.5-coder:1.5b", "haiku"]    qwen, fall back to Anthropic
+#   "sonnet"  -> ["openai/qwen2.5-coder:1.5b", "sonnet"]   qwen, fall back to Anthropic
+#   "opus"    -> ["opus"]                                  always Anthropic direct
+#   anything  -> [model]                                    pass-through
+#
+# Prerequisites:
+#   1. Build claw and put it on PATH or set CLAW_BINARY.
+#   2. Run Ollama and pull the local model:
+#        ollama pull qwen2.5-coder:1.5b
+#        export OPENAI_BASE_URL="http://127.0.0.1:11434/v1"
+#        export OPENAI_API_KEY="ollama"
+#   3. Provide an Anthropic credential ONLY for the cases qwen can't handle:
+#        export ANTHROPIC_API_KEY=sk-ant-...
+#
+# Usage:
+#   jarvis ask --agent claw_smart --model haiku  "..."   # qwen first
+#   jarvis ask --agent claw_smart --model sonnet "..."   # qwen first
+#   jarvis ask --agent claw_smart --model opus   "..."   # Anthropic only
+
+[agent]
+default_agent = "claw_smart"
+max_turns = 1
+
+[agent.claw_smart]
+# permission_mode = "workspace-write"
+# allowed_tools = ["read", "glob", "edit"]
+# timeout = 300
+
+[intelligence]
+# Use an Anthropic alias here -- the smart agent expands it via the
+# routing table. "haiku" / "sonnet" cascade qwen -> Anthropic;
+# "opus" goes straight to Anthropic.
+default_model = "sonnet"
+
+[engine]
+default = "ollama"
+
+[engine.ollama]
+host = "http://127.0.0.1:11434"
+
+[tools]
+enabled = []
